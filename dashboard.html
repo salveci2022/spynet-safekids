@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPYNET SafeKids — Painel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  :root {
+    --bg: #0F1117; --bg2: #171921; --bg3: #1E2130;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #E8EAF0; --muted: #8B90A0; --accent: #3B82F6;
+    --green: #10B981; --amber: #F59E0B; --red: #EF4444; --purple: #8B5CF6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* LAYOUT */
+  .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
+  .main { padding: 24px; overflow-y: auto; }
+
+  /* SIDEBAR */
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 18px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .brand-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .brand-name { font-size: 14px; font-weight: 600; }
+  .brand-sub { font-size: 11px; color: var(--muted); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 18px; font-size: 13px; color: var(--muted); cursor: pointer; transition: all .15s; border-left: 2px solid transparent; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,.04); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(59,130,246,.08); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .nav-section { font-size: 10px; font-weight: 600; letter-spacing: .08em; color: var(--muted); padding: 16px 18px 6px; text-transform: uppercase; }
+  .sidebar-footer { margin-top: auto; padding: 16px 18px 0; border-top: 1px solid var(--border); }
+  .user-pill { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .user-name { font-size: 12px; font-weight: 500; }
+  .user-role { font-size: 10px; color: var(--muted); }
+
+  /* TOPBAR */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 20px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-green { background: rgba(16,185,129,.15); color: var(--green); }
+  .badge-amber { background: rgba(245,158,11,.15); color: var(--amber); }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #2563EB; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+  .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
+
+  /* METRICS */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .metric-value { font-size: 26px; font-weight: 600; line-height: 1; }
+  .metric-sub { font-size: 11px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+  /* GRID */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .grid3 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+  /* DEVICES */
+  .device-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .device-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .device-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .device-info { flex: 1; min-width: 0; }
+  .device-name { font-size: 13px; font-weight: 500; }
+  .device-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .pill-green { background: rgba(16,185,129,.15); color: var(--green); }
+  .pill-gray { background: var(--bg3); color: var(--muted); }
+  .pill-amber { background: rgba(245,158,11,.15); color: var(--amber); }
+
+  /* ALERTS */
+  .alert-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .alert-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .alert-body { flex: 1; }
+  .alert-title { font-size: 12px; font-weight: 500; }
+  .alert-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .alert-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  /* CHART BARS */
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 70px; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .bar-fill { width: 100%; border-radius: 3px 3px 0 0; background: rgba(59,130,246,.4); min-height: 4px; }
+  .bar-fill.today { background: var(--accent); }
+  .bar-day { font-size: 9px; color: var(--muted); }
+
+  /* USE BARS */
+  .use-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .use-row:last-child { margin-bottom: 0; }
+  .use-label { font-size: 12px; color: var(--muted); width: 80px; flex-shrink: 0; }
+  .use-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .use-fill { height: 100%; border-radius: 3px; }
+  .use-val { font-size: 12px; color: var(--text); width: 32px; text-align: right; flex-shrink: 0; }
+
+  /* MAP MOCK */
+  .map-box { background: var(--bg3); border-radius: 8px; height: 110px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .map-grid { position: absolute; inset: 0; opacity: .15; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 24px 24px; }
+  .map-center { width: 14px; height: 14px; border-radius: 50%; background: var(--green); z-index: 2; box-shadow: 0 0 0 6px rgba(16,185,129,.2), 0 0 0 12px rgba(16,185,129,.08); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 6px rgba(16,185,129,.2),0 0 0 12px rgba(16,185,129,.08)} 50%{box-shadow:0 0 0 8px rgba(16,185,129,.15),0 0 0 16px rgba(16,185,129,.05)} }
+  .map-label { position: absolute; bottom: 8px; right: 10px; font-size: 10px; color: var(--muted); }
+  .map-label-top { position: absolute; top: 8px; left: 10px; font-size: 10px; color: var(--muted); }
+
+  /* GEOFENCE CONFIG */
+  .config-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .config-row:last-child { border-bottom: none; }
+  .config-key { font-size: 12px; color: var(--muted); }
+  .config-val { font-size: 12px; font-weight: 500; }
+  .toggle { position: relative; width: 34px; height: 18px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: var(--bg3); border-radius: 9px; cursor: pointer; transition: .2s; }
+  .toggle-slider::before { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; background: var(--muted); border-radius: 50%; transition: .2s; }
+  input:checked + .toggle-slider { background: var(--green); }
+  input:checked + .toggle-slider::before { transform: translateX(16px); background: #fff; }
+
+  /* LOGIN */
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  .login-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 36px; width: 360px; }
+  .login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .login-title { font-size: 22px; font-weight: 700; }
+  .login-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 12px; color: var(--muted); margin-bottom: 5px; display: block; }
+  .form-input { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--text); outline: none; transition: border-color .15s; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-error { font-size: 11px; color: var(--red); margin-top: 4px; }
+  .btn-full { width: 100%; padding: 10px; }
+
+  /* NOTIFICATION TOAST */
+  #toast { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast-item { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; min-width: 260px; max-width: 320px; animation: slide-in .3s ease; }
+  .toast-item.danger { border-color: rgba(239,68,68,.4); }
+  .toast-item.warn { border-color: rgba(245,158,11,.4); }
+  .toast-head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+  .toast-body { font-size: 11px; color: var(--muted); }
+  @keyframes slide-in { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+  /* PAGES */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div id="toast"></div>
+
+<!-- LOGIN PAGE -->
+<div id="login-page">
+  <div class="login-wrap">
+    <div class="login-card">
+      <!-- CARD LOGIN -->
+      <div id="login-card">
+        <div class="login-logo">
+          <div class="brand-icon">🛡️</div>
+          <div>
+            <div class="login-title">SPYNET SafeKids</div>
+            <div class="login-sub">Proteção digital para sua família</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" id="login-email" class="form-input" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="login-senha" class="form-input" placeholder="••••••••">
+          <div id="login-erro" class="form-error" style="display:none"></div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="fazerLogin()">Entrar</button>
+        <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted)">
+          Não tem conta? <span style="color:var(--accent);cursor:pointer" onclick="mostrarRegistro()">Cadastre-se</span>
+        </div>
+      </div>
+
+      <!-- CARD REGISTRO -->
+      <div id="registro-card" style="display:none">
+        <div class="login-logo">
+          <div class="brand-icon">🛡️</div>
+          <div>
+            <div class="login-title">Criar conta</div>
+            <div class="login-sub">SPYNET SafeKids</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nome completo</label>
+          <input type="text" id="reg-nome" class="form-input" placeholder="Seu nome">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" id="reg-email" class="form-input" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="reg-senha" class="form-input" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="form-group">
+          <label class="form-label">WhatsApp (para alertas)</label>
+          <input type="text" id="reg-tel" class="form-input" placeholder="5561999999999">
+          <div id="reg-erro" class="form-error" style="display:none"></div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="fazerRegistro()">Criar conta</button>
+        <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted)">
+          Já tem conta? <span style="color:var(--accent);cursor:pointer" onclick="voltarLogin()">Entrar</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="app-page" style="display:none">
+  <div class="shell">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">🛡️</div>
+        <div>
+          <div class="brand-name">SafeKids</div>
+          <div class="brand-sub">SPYNET</div>
+        </div>
+      </div>
+
+      <div class="nav-item active" onclick="navegar('overview')">
+        <span class="nav-icon">📊</span> Visão geral
+      </div>
+      <div class="nav-item" onclick="navegar('dispositivos')">
+        <span class="nav-icon">📱</span> Dispositivos
+      </div>
+      <div class="nav-item" onclick="navegar('alertas')">
+        <span class="nav-icon">🔔</span> Alertas
+        <span class="badge badge-red" id="badge-alertas" style="margin-left:auto">3</span>
+      </div>
+      <div class="nav-item" onclick="navegar('localizacao')">
+        <span class="nav-icon">📍</span> Localização
+      </div>
+
+      <div class="nav-section">Configurações</div>
+      <div class="nav-item" onclick="navegar('controles')">
+        <span class="nav-icon">⚙️</span> Controles
+      </div>
+      <div class="nav-item" onclick="navegar('relatorio')">
+        <span class="nav-icon">📄</span> Relatórios
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <div class="avatar" id="user-avatar">S</div>
+          <div>
+            <div class="user-name" id="user-nome">Responsável</div>
+            <div class="user-role">Administrador</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost" style="width:100%;margin-top:10px;font-size:11px" onclick="sair()">Sair</button>
+      </div>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- OVERVIEW -->
+      <div id="page-overview" class="page active">
+        <div class="topbar">
+          <div class="page-title">Visão geral</div>
+          <div class="topbar-right">
+            <span class="badge badge-green" id="status-geral">● Sistema ativo</span>
+            <button class="btn btn-primary" onclick="gerarRelatorio()">Gerar relatório</button>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Dispositivos</div>
+            <div class="metric-value" id="m-dispositivos">—</div>
+            <div class="metric-sub"><span class="dot" style="background:var(--green)"></span> <span id="m-online">—</span> online</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Uso hoje</div>
+            <div class="metric-value" id="m-uso">—</div>
+            <div class="metric-sub"><span class="dot" style="background:var(--amber)"></span> limite: 5h</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Bloqueios hoje</div>
+            <div class="metric-value" id="m-bloqueios">17</div>
+            <div class="metric-sub">sites e apps</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Score de segurança</div>
+            <div class="metric-value" style="color:var(--green)" id="m-score">92</div>
+            <div class="metric-sub"><span class="dot" style="background:var(--green)"></span> ótimo</div>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="card">
+            <div class="card-head">
+              <span class="card-title">Alertas recentes</span>
+              <span class="badge badge-red" id="badge-ov">3 novos</span>
+            </div>
+            <div id="lista-alertas-ov">
+              <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Carregando...</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px">Uso semanal</div>
+              <div class="bar-chart" id="uso-chart">
+                <!-- gerado por JS -->
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px">Localização atual</div>
+              <div class="map-box">
+                <div class="map-grid"></div>
+                <div class="map-center"></div>
+                <span class="map-label-top">GPS ativo</span>
+                <span class="map-label">Zona segura ✓</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Categorias de acesso</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div class="use-row"><span class="use-label">Educação</span><div class="use-track"><div class="use-fill" style="width:72%;background:var(--green)"></div></div><span class="use-val">72%</span></div>
+              <div class="use-row"><span class="use-label">YouTube</span><div class="use-track"><div class="use-fill" style="width:48%;background:var(--accent)"></div></div><span class="use-val">48%</span></div>
+              <div class="use-row"><span class="use-label">Games</span><div class="use-track"><div class="use-fill" style="width:35%;background:var(--purple)"></div></div><span class="use-val">35%</span></div>
+            </div>
+            <div>
+              <div class="use-row"><span class="use-label">Redes soc.</span><div class="use-track"><div class="use-fill" style="width:20%;background:var(--amber)"></div></div><span class="use-val">20%</span></div>
+              <div class="use-row"><span class="use-label">Bloqueado</span><div class="use-track"><div class="use-fill" style="width:8%;background:var(--red)"></div></div><span class="use-val">8%</span></div>
+              <div class="use-row"><span class="use-label">Outros</span><div class="use-track"><div class="use-fill" style="width:15%;background:var(--muted)"></div></div><span class="use-val">15%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DISPOSITIVOS -->
+      <div id="page-dispositivos" class="page">
+        <div class="topbar">
+          <div class="page-title">Dispositivos</div>
+          <button class="btn btn-primary" onclick="abrirModalDispositivo()">+ Adicionar dispositivo</button>
+        </div>
+        <div id="lista-dispositivos">
+          <div style="text-align:center;padding:40px;color:var(--muted)">Carregando dispositivos...</div>
+        </div>
+      </div>
+
+      <!-- ALERTAS -->
+      <div id="page-alertas" class="page">
+        <div class="topbar">
+          <div class="page-title">Central de alertas</div>
+          <button class="btn btn-ghost" onclick="marcarTodosLidos()">Marcar todos como lidos</button>
+        </div>
+        <div id="lista-alertas-full">
+          <div style="text-align:center;padding:40px;color:var(--muted)">Nenhum alerta ainda.</div>
+        </div>
+      </div>
+
+      <!-- LOCALIZAÇÃO -->
+      <div id="page-localizacao" class="page">
+        <div class="topbar">
+          <div class="page-title">Localização em tempo real</div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:14px">Mapa (simulado — integre com Google Maps API)</div>
+          <div class="map-box" style="height:300px">
+            <div class="map-grid"></div>
+            <div class="map-center"></div>
+            <span class="map-label-top">GPS ativo — atualiza a cada 30s</span>
+            <span class="map-label">Brasília-DF · Zona segura ✓</span>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px">Configuração de zona segura</div>
+            <div class="config-row"><span class="config-key">Centro da zona</span><span class="config-val">Brasília-DF</span></div>
+            <div class="config-row"><span class="config-key">Raio de segurança</span><span class="config-val">500 metros</span></div>
+            <div class="config-row"><span class="config-key">Alertar ao sair</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Alertar ao entrar</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="salvarGeo()">Salvar configuração</button>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px">Histórico de locais hoje</div>
+            <div class="alert-row"><div class="alert-dot" style="background:var(--green)"></div><div class="alert-body"><div class="alert-title">Casa — zona segura</div><div class="alert-time">Agora · última posição</div></div></div>
+            <div class="alert-row"><div class="alert-dot" style="background:var(--red)"></div><div class="alert-body"><div class="alert-title">Saiu da zona segura</div><div class="alert-time">Há 1h 20min · 620m de distância</div></div></div>
+            <div class="alert-row"><div class="alert-dot" style="background:var(--green)"></div><div class="alert-body"><div class="alert-title">Retornou à zona segura</div><div class="alert-time">Há 45min</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTROLES -->
+      <div id="page-controles" class="page">
+        <div class="topbar">
+          <div class="page-title">Controles parentais</div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title" style="margin-bottom:14px">Limites de uso</div>
+            <div class="config-row"><span class="config-key">Limite diário</span><span class="config-val">5 horas</span></div>
+            <div class="config-row"><span class="config-key">Modo noturno</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Início do noturno</span><span class="config-val">21:00</span></div>
+            <div class="config-row"><span class="config-key">Fim do noturno</span><span class="config-val">07:00</span></div>
+            <div class="config-row"><span class="config-key">Bloqueio automático</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:14px">Categorias bloqueadas</div>
+            <div class="config-row"><span class="config-key">Conteúdo adulto</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Violência</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Apostas / jogos</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Redes sociais</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Compras online</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:14px">Alertas WhatsApp</div>
+            <div class="config-row"><span class="config-key">Alerta de saída de zona</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Conteúdo suspeito</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Limite de tempo</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div class="config-row"><span class="config-key">Relatório semanal</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:14px">Apps bloqueados</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="apps-bloqueados">
+              <span class="badge badge-red">TikTok ×</span>
+              <span class="badge badge-red">Instagram ×</span>
+              <span class="badge badge-red">Twitter ×</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <input class="form-input" id="novo-app" placeholder="Nome do app..." style="flex:1">
+              <button class="btn btn-primary" onclick="adicionarApp()">Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:4px" onclick="salvarControles()">Salvar todas as configurações</button>
+      </div>
+
+      <!-- RELATÓRIO -->
+      <div id="page-relatorio" class="page">
+        <div class="topbar">
+          <div class="page-title">Relatórios</div>
+          <button class="btn btn-primary" onclick="gerarRelatorio()">Gerar PDF</button>
+        </div>
+        <div id="relatorio-content">
+          <div style="text-align:center;padding:40px;color:var(--muted)">Selecione um dispositivo para gerar o relatório.</div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+let token = localStorage.getItem('sk_token');
+let nomeUsuario = localStorage.getItem('sk_nome') || '';
+let socket = null;
+let alertasData = [];
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+window.onload = () => {
+  if (token) iniciarApp();
+  else document.getElementById('login-page').style.display = 'flex';
+  renderUsoChart();
+};
+
+// ─── AUTH ───────────────────────────────────────────────────────────────────
+async function fazerLogin() {
+  const email = document.getElementById('login-email').value;
+  const senha = document.getElementById('login-senha').value;
+  const erro = document.getElementById('login-erro');
+  try {
+    const r = await fetch(`${API}/api/auth/login`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, senha})
+    });
+    const data = await r.json();
+    if (!r.ok) { erro.textContent = data.erro || 'Erro no login'; erro.style.display = 'block'; return; }
+    token = data.token;
+    nomeUsuario = data.nome;
+    localStorage.setItem('sk_token', token);
+    localStorage.setItem('sk_nome', nomeUsuario);
+    document.getElementById('login-page').style.display = 'none';
+    iniciarApp();
+  } catch(e) {
+    // Demo mode offline
+    token = 'demo-token';
+    nomeUsuario = 'Responsável Demo';
+    localStorage.setItem('sk_token', token);
+    localStorage.setItem('sk_nome', nomeUsuario);
+    document.getElementById('login-page').style.display = 'none';
+    iniciarApp();
+  }
+}
+
+function mostrarRegistro() {
+  document.getElementById('login-card').style.display = 'none';
+  document.getElementById('registro-card').style.display = 'block';
+}
+
+function voltarLogin() {
+  document.getElementById('registro-card').style.display = 'none';
+  document.getElementById('login-card').style.display = 'block';
+}
+
+async function fazerRegistro() {
+  const nome  = document.getElementById('reg-nome').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const senha = document.getElementById('reg-senha').value;
+  const tel   = document.getElementById('reg-tel').value.trim();
+  const erro  = document.getElementById('reg-erro');
+  if (!nome || !email || !senha) {
+    erro.textContent = 'Preencha nome, e-mail e senha.';
+    erro.style.display = 'block'; return;
+  }
+  try {
+    const r = await fetch(`${API}/api/auth/registro`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({nome, email, senha, telefone: tel})
+    });
+    const data = await r.json();
+    if (!r.ok) { erro.textContent = data.erro || 'Erro no cadastro'; erro.style.display = 'block'; return; }
+    token = data.token;
+    nomeUsuario = data.nome;
+    localStorage.setItem('sk_token', token);
+    localStorage.setItem('sk_nome', nomeUsuario);
+    document.getElementById('login-page').style.display = 'none';
+    iniciarApp();
+  } catch(e) {
+    // modo demo
+    token = 'demo-token';
+    nomeUsuario = nome || 'Responsável Demo';
+    localStorage.setItem('sk_token', token);
+    localStorage.setItem('sk_nome', nomeUsuario);
+    document.getElementById('login-page').style.display = 'none';
+    iniciarApp();
+  }
+}
+
+function sair() {
+  localStorage.removeItem('sk_token');
+  localStorage.removeItem('sk_nome');
+  location.reload();
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function iniciarApp() {
+  document.getElementById('app-page').style.display = 'block';
+  document.getElementById('user-nome').textContent = nomeUsuario;
+  document.getElementById('user-avatar').textContent = nomeUsuario[0]?.toUpperCase() || 'R';
+  carregarDados();
+  conectarSocket();
+  simularAlertas();
+}
+
+function conectarSocket() {
+  try {
+    socket = io(API);
+    socket.on('novo_evento', (data) => {
+      adicionarToast(data.severidade, data.dispositivo, data.descricao || data.motivo);
+      atualizarBadgeAlertas();
+    });
+    socket.on('localizacao', (data) => {
+      console.log('GPS atualizado:', data);
+    });
+  } catch(e) { console.log('Socket offline — modo demo'); }
+}
+
+async function carregarDados() {
+  // Demo data
+  document.getElementById('m-dispositivos').textContent = '3';
+  document.getElementById('m-online').textContent = '2';
+  document.getElementById('m-uso').textContent = '4h 12m';
+  renderAlertasDemo();
+  renderDispositivosDemo();
+}
+
+// ─── NAVEGAÇÃO ───────────────────────────────────────────────────────────────
+function navegar(pagina) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${pagina}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (pagina === 'alertas') { document.getElementById('badge-alertas').style.display = 'none'; }
+}
+
+// ─── CHART ───────────────────────────────────────────────────────────────────
+function renderUsoChart() {
+  const dados = [2.5, 3.8, 4.1, 2.2, 5.0, 3.3, 4.2];
+  const dias  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const max   = Math.max(...dados);
+  const el    = document.getElementById('uso-chart');
+  if (!el) return;
+  el.innerHTML = dados.map((h, i) => `
+    <div class="bar-col">
+      <div class="bar-fill${i===6?' today':''}" style="height:${Math.round(h/max*56)+4}px"></div>
+      <span class="bar-day">${dias[i]}</span>
+    </div>`).join('');
+}
+
+// ─── DEMO DATA ────────────────────────────────────────────────────────────────
+const alertasDemo = [
+  {tipo:'conteudo_suspeito', titulo:'Conteúdo bloqueado', desc:'Categoria adulto — YouTube', sev:'danger', disp:'Celular da Maria', tempo:'há 12 min'},
+  {tipo:'limite_proximo',    titulo:'Limite de tempo',    desc:'48 min restantes no limite',  sev:'warn',   disp:'Celular da Maria', tempo:'há 5 min'},
+  {tipo:'saiu_zona_segura',  titulo:'Saiu da zona segura',desc:'620m do centro — alertado',   sev:'danger', disp:'Tablet do João',   tempo:'há 1h 20min'},
+  {tipo:'site_bloqueado',    titulo:'Site bloqueado',     desc:'apostas.com.br — categoría apostas', sev:'warn', disp:'Notebook escolar', tempo:'há 3h'},
+];
+
+function renderAlertasDemo() {
+  const el = document.getElementById('lista-alertas-ov');
+  if (!el) return;
+  el.innerHTML = alertasDemo.slice(0,3).map(a => `
+    <div class="alert-row">
+      <div class="alert-dot" style="background:${a.sev==='danger'?'var(--red)':'var(--amber)'}"></div>
+      <div class="alert-body">
+        <div class="alert-title">${a.titulo}</div>
+        <div class="alert-desc">${a.desc}</div>
+        <div class="alert-time">${a.disp} · ${a.tempo}</div>
+      </div>
+    </div>`).join('');
+
+  const el2 = document.getElementById('lista-alertas-full');
+  if (!el2) return;
+  el2.innerHTML = alertasDemo.map(a => `
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="alert-dot" style="background:${a.sev==='danger'?'var(--red)':'var(--amber)'};width:10px;height:10px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:500">${a.titulo}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${a.desc}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${a.disp} · ${a.tempo}</div>
+        </div>
+        <span class="pill ${a.sev==='danger'?'pill-red':'pill-amber'}">${a.sev==='danger'?'Crítico':'Aviso'}</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderDispositivosDemo() {
+  const devs = [
+    {nome:'Celular da Maria', plataforma:'Android', online:true, uso:'2h 40m', icon:'📱'},
+    {nome:'Tablet do João',   plataforma:'iOS',     online:true, uso:'1h 32m', icon:'📱'},
+    {nome:'Notebook escolar', plataforma:'Windows', online:false,uso:'—',      icon:'💻'},
+  ];
+  const el = document.getElementById('lista-dispositivos');
+  if (!el) return;
+  el.innerHTML = devs.map(d => `
+    <div class="card" style="margin-bottom:10px">
+      <div class="device-row" style="padding:0">
+        <div class="device-icon">${d.icon}</div>
+        <div class="device-info">
+          <div class="device-name">${d.nome}</div>
+          <div class="device-meta">${d.plataforma} · ${d.uso} hoje</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="pill ${d.online?'pill-green':'pill-gray'}">${d.online?'Online':'Offline'}</span>
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="configurarDispositivo('${d.nome}')">Configurar</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── AÇÕES ────────────────────────────────────────────────────────────────────
+function adicionarApp() {
+  const inp = document.getElementById('novo-app');
+  const app = inp.value.trim();
+  if (!app) return;
+  const el = document.getElementById('apps-bloqueados');
+  const span = document.createElement('span');
+  span.className = 'badge badge-red';
+  span.textContent = `${app} ×`;
+  span.onclick = () => span.remove();
+  el.appendChild(span);
+  inp.value = '';
+}
+
+function salvarControles() {
+  adicionarToast('info', 'Configurações salvas', 'Mudanças sincronizadas com os dispositivos');
+}
+
+function salvarGeo() {
+  adicionarToast('info', 'Zona segura atualizada', 'Geofencing configurado com sucesso');
+}
+
+function abrirModalDispositivo() {
+  alert('Para adicionar um dispositivo:\n\n1. Instale o app SafeKids no dispositivo da criança\n2. Use o token gerado: POST /api/dispositivos\n3. Insira o token no app filho para parear');
+}
+
+function configurarDispositivo(nome) {
+  navegar('controles');
+  document.querySelectorAll('.nav-item')[4].classList.add('active');
+}
+
+function marcarTodosLidos() {
+  document.getElementById('badge-alertas').style.display = 'none';
+  adicionarToast('info', 'Alertas marcados', 'Todos os alertas foram marcados como lidos');
+}
+
+function gerarRelatorio() {
+  const el = document.getElementById('relatorio-content');
+  if (el) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px">Relatório semanal — Celular da Maria</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+          <div class="metric"><div class="metric-label">Total de eventos</div><div class="metric-value">24</div></div>
+          <div class="metric"><div class="metric-label">Críticos</div><div class="metric-value" style="color:var(--red)">3</div></div>
+          <div class="metric"><div class="metric-label">Média de uso</div><div class="metric-value">3h 20m</div></div>
+        </div>
+        <p style="font-size:13px;color:var(--muted)">Para gerar PDF, conecte ao backend Flask e chame: GET /api/relatorio/{id}/semanal</p>
+      </div>`;
+  }
+  adicionarToast('info', 'Relatório gerado', 'PDF disponível via API do backend');
+}
+
+function atualizarBadgeAlertas() {
+  const b = document.getElementById('badge-alertas');
+  const n = parseInt(b.textContent) + 1;
+  b.textContent = n;
+  b.style.display = 'inline-block';
+}
+
+// ─── TOASTS ───────────────────────────────────────────────────────────────────
+function adicionarToast(sev, titulo, corpo) {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-item ${sev}`;
+  el.innerHTML = `<div class="toast-head">${sev==='danger'?'🚨':sev==='warn'?'⚠️':'ℹ️'} ${titulo}</div><div class="toast-body">${corpo}</div>`;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+function simularAlertas() {
+  const msgs = [
+    {sev:'warn',   t:'Limite de tempo',     b:'Maria: 1h restante'},
+    {sev:'danger', t:'Site bloqueado',       b:'Tentativa de acesso bloqueada'},
+    {sev:'info',   t:'Localização atualizada',b:'João chegou em casa'},
+  ];
+  let i = 0;
+  setTimeout(() => {
+    const m = msgs[i++ % msgs.length];
+    adicionarToast(m.sev, m.t, m.b);
+    atualizarBadgeAlertas();
+  }, 4000);
+}
+</script>
+</body>
+</html>

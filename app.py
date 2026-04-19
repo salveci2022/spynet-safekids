@@ -3,7 +3,7 @@ SPYNET SafeKids — Backend Flask
 Controle parental legítimo com MDM, geofencing e IA
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_socketio import SocketIO, emit, join_room
@@ -354,6 +354,19 @@ def _enviar_whatsapp_alerta(dispositivo, evento):
             json={'phone': telefone, 'message': msg}, timeout=5)
     except Exception:
         pass
+
+
+# ─── FRONTEND ────────────────────────────────────────────────────────────────────
+
+@app.route('/')
+def index():
+    frontend = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+    return send_from_directory(frontend, 'dashboard.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    frontend = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+    return send_from_directory(frontend, filename)
 
 # ─── INIT ──────────────────────────────────────────────────────────────────────
 
