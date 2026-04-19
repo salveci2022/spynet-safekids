@@ -20,7 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 CORS(app)
 
 # ─── MODELOS ───────────────────────────────────────────────────────────────────
