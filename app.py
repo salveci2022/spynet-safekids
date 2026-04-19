@@ -3,7 +3,7 @@ SPYNET SafeKids — Backend Flask
 Controle parental legítimo com MDM, geofencing e IA
 """
 
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_socketio import SocketIO, emit, join_room
@@ -20,7 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 CORS(app)
 
 # ─── MODELOS ───────────────────────────────────────────────────────────────────
@@ -354,17 +354,6 @@ def _enviar_whatsapp_alerta(dispositivo, evento):
             json={'phone': telefone, 'message': msg}, timeout=5)
     except Exception:
         pass
-
-# ─── FRONTEND ────────────────────────────────────────────────────────────────────
-
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def frontend(path):
-    import os
-    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-    if path and os.path.exists(os.path.join(frontend_dir, path)):
-        return send_from_directory(frontend_dir, path)
-    return send_from_directory(frontend_dir, "dashboard.html")
 
 # ─── INIT ──────────────────────────────────────────────────────────────────────
 
